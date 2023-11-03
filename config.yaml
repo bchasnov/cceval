@@ -1,0 +1,30 @@
+ops:
+    eval_op:
+        config:
+            langauge: "java"
+            model_name_or_path: "Salesforce/codet5p-220m"
+            model_type: "codet5p"
+            #prompt_file: "./data/crosscodeeval_data/java/line_completion_rg1_bm25.jsonl"
+            prompt_file: "./data/crosscodeeval_data/java/line_completion_short.jsonl"
+            gen_length: 50
+            max_seq_length: 2048
+            cfc_seq_length: 512
+            min_cfc_score: -.inf
+            batch_size: 8
+            stop_token: ""
+            cache_dir: "./cache"
+            temperature: 0.2
+            output_dir: "./out/crosscodeeval_testrun"
+            top_k: 0
+            top_p: 0.95
+            seed: 42
+            no_cuda: false
+            num_return_sequences: 1
+            repetition_penalty: 1.0
+            preprocessing_num_workers: 1
+            overwrite_cache: true
+            dtype: "fp16"
+            do_sample: false
+            num_beams: 1
+            ts_lib: "./build/java-lang-parser.so"
+            only_compute_metric: false
