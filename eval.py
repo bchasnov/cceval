@@ -186,7 +186,7 @@ def build_datasets(args, tokenizer):
     return tokenized_datasets, index2taskid
 
 
-def model_inference(tokenized_datasets, index2taskid, tokenizer):
+def model_inference(args, accelerate, tokenized_datasets, index2taskid, tokenizer):
     if args.dtype == 'fp16':
         dtype = torch.float16
     elif args.dtype == 'fp32':
@@ -392,7 +392,7 @@ if __name__ == "__main__":
 
 @op(
     config_schema={
-        "langauge": str,
+        "language": str,
         "model_name_or_path": str,
         "model_type": str,
         "prompt_file": str,
@@ -435,7 +435,7 @@ def eval_op(context):
         print(">>> BUILD DATASET")
         tokenized_datasets, index2taskid = build_datasets(args, tokenizer)
         print(">>> MODEL INFERENCE")
-        model_inference(tokenized_datasets, index2taskid, tokenizer)
+        model_inference(args, accelerate, tokenized_datasets, index2taskid, tokenizer)
 
     # check if the process is the main process
     if accelerator.is_main_process:
