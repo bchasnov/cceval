@@ -34,6 +34,8 @@ import custom_generate
 from eval_metric import compute_metric_stmt
 from eval_utils import compute_mean_logp
 
+from dagster import op, job
+
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
     datefmt="%m/%d/%Y %H:%M:%S",
@@ -65,7 +67,6 @@ def custom_data_collator(features):
             batch[k] = [f[k] for f in features]
 
     return batch
-
 
 def build_datasets(args, tokenizer):
     # Initialize the model and tokenizer
@@ -161,7 +162,7 @@ def build_datasets(args, tokenizer):
         features["index"] = examples["index"]
         return features
 
-    if args.model_type in ["codelm", "seq2seqlm", "codet5p"]:
+    if args.model_type in ["codelm", "seq2seqlm"]:
         tokenized_datasets = raw_datasets.map(
             prepare_features,
             batched=True,
@@ -170,7 +171,7 @@ def build_datasets(args, tokenizer):
             load_from_cache_file=not args.overwrite_cache,
             desc="Running tokenizer on dataset",
         )
-    elif args.model_type == "codelm_cfc":
+    elif args.model_type in ["codelm_cfc", "codet5p"]:
         tokenized_datasets = raw_datasets.map(
             prepare_features_cfc,
             batched=True,
@@ -388,3 +389,58 @@ if __name__ == "__main__":
     # check if the process is the main process
     if accelerator.is_main_process:
         compute_metric_stmt(args)
+
+@op(
+    config_schema={
+        "langauge": str,
+        "model_name_or_path": str,
+        "model_type": str,
+        "prompt_file": str,
+        "gen_length": int,
+        "max_seq_length": int,
+        "cfc_seq_length": int,
+        "min_cfc_score": float,
+        "batch_size": int,
+        "stop_token": str,
+        "cache_dir": str,
+        "temperature": float,
+        "output_dir": str,
+        "top_k": int,
+        "top_p": float,
+        "seed": int,
+        "no_cuda": bool,
+        "num_return_sequences": int,
+        "repetition_penalty": float,
+        "preprocessing_num_workers": int,
+        "overwrite_cache": bool,
+        "dtype": str,
+        "do_sample": bool,
+        "num_beams": int,
+        "ts_lib": str,
+        "only_compute_metric": bool
+    },
+)
+def eval_op(context):
+    print(">>> INIT")
+    args = argparse.Namespace(**context.op_config)
+    set_seed(args.seed, device_specific=False)
+
+    if args.num_return_sequences > 1:
+        assert args.do_sample, "sampling must be set to True when num_return_sequences > 1"
+
+    accelerator = Accelerator()
+    if not args.only_compute_metric:
+        print(">>> TOKENIZER")
+        tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path, trust_remote_code=True)
+        print(">>> BUILD DATASET")
+        tokenized_datasets, index2taskid = build_datasets(args, tokenizer)
+        print(">>> MODEL INFERENCE")
+        model_inference(tokenized_datasets, index2taskid, tokenizer)
+
+    # check if the process is the main process
+    if accelerator.is_main_process:
+        compute_metric_stmt(args)
+
+@job 
+def eval_job():
+    eval_op()
