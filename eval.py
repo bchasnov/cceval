@@ -26,7 +26,8 @@ from torch.utils.data import DataLoader, SequentialSampler
 from tqdm import tqdm
 from transformers import (
     AutoTokenizer,
-    AutoModelForCausalLM
+    AutoModelForCausalLM,
+    T5ForConditionalGeneration
 )
 
 import custom_generate
@@ -160,7 +161,7 @@ def build_datasets(args, tokenizer):
         features["index"] = examples["index"]
         return features
 
-    if args.model_type in ["codelm", "seq2seqlm"]:
+    if args.model_type in ["codelm", "seq2seqlm", "codet5p"]:
         tokenized_datasets = raw_datasets.map(
             prepare_features,
             batched=True,
@@ -198,6 +199,13 @@ def model_inference(tokenized_datasets, index2taskid, tokenizer):
 
     if args.model_type in ["codelm", "codelm_cfc"]:
         model = AutoModelForCausalLM.from_pretrained(
+            args.model_name_or_path,
+            torch_dtype=dtype,
+            trust_remote_code=True,
+            revision="main"
+        )
+    elif args.model_type in ["codet5p"]:
+        model = T5ForConditionalGeneration.from_pretrained(
             args.model_name_or_path,
             torch_dtype=dtype,
             trust_remote_code=True,
@@ -254,7 +262,11 @@ def model_inference(tokenized_datasets, index2taskid, tokenizer):
         # batch_scores.shape = (batch_size x num_gpus x num_return_sequences, max_length)
         batch_task_id, batch_pred, batch_scores = accelerator.gather((batch_task_id, batch_pred, batch_scores))
 
-        batch_pred = batch_pred[:, prompt_length:]
+        if args.model_type in ["codet5p"]:
+            batch_pred = batch_pred[:, 1:]
+        else:
+            batch_pred = batch_pred[:, prompt_length:]
+
         generated_texts = tokenizer.batch_decode(batch_pred, skip_special_tokens=True)
 
         mean_logp = compute_mean_logp(batch_scores, batch_pred, tokenizer.pad_token_id)
@@ -303,7 +315,7 @@ if __name__ == "__main__":
         "--model_type",
         type=str,
         default="codelm",
-        choices=["codelm", "codelm_cfc"],
+        choices=["codelm", "codelm_cfc", "codet5p"],
         help="Model type to be loaded"
     )
     parser.add_argument("--prompt_file", type=str, default=None, help="file with a list of prompts")
