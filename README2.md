@@ -34,7 +34,9 @@ Next steps:
 
 ## Future improvements
 
-Further partition the code into dagster-friendly software-defined assets to allow for modularity and a declarative approach to data management.
+* Further partition the code into dagster-friendly software-defined assets to allow for modularity and a declarative approach to data management.
+* Visualize the results using a Jupyter notebook as part of the dagster pipeline.
+
 
 ## Error logs
 
